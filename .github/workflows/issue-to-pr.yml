@@ -25,10 +25,6 @@ permissions:
 jobs:
   autonomous-implement:
     runs-on: ubuntu-latest
-    # Only run when triggered by:
-    # 1. An issue event with ai-implement label, OR
-    # 2. A comment starting with /implement, OR
-    # 3. Manual workflow dispatch
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-implement')) ||
@@ -72,8 +68,11 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-4-20250514
-          max_turns: 30
+          claude_args: >-
+            --model claude-sonnet-4-20250514
+            --max-turns 30
+            --allowedTools Edit,Write,Bash,Read,Glob,Grep
+            --dangerously-skip-permissions
           prompt: |
             You are an autonomous developer. Your task is to implement the changes described in GitHub issue #${{ steps.issue.outputs.number }}.
 
