@@ -93,3 +93,4 @@ jobs:
                - Summarizes what was implemented
                - Lists any decisions made or assumptions taken
           use_sticky_comment: true
+          show_full_output: true
