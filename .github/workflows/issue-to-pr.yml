@@ -1,0 +1,68 @@
+name: Issue to PR (Autonomous)
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: claude-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  autonomous-implement:
+    # Only run when:
+    # 1. Issue is opened with "ai-implement" label, OR
+    # 2. Issue gets "ai-implement" label added, OR
+    # 3. Someone comments "/implement" on an issue
+    if: |
+      (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-implement')) ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/implement'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-20250514
+          max_turns: 30
+          prompt: |
+            You are an autonomous developer. Your task is to implement the changes described in GitHub issue #${{ github.event.issue.number }}.
+
+            ## Issue Details
+            Title: ${{ github.event.issue.title }}
+            Body: ${{ github.event.issue.body }}
+
+            ## Instructions
+            1. Read the issue carefully and understand what needs to be done.
+            2. Read CLAUDE.md in the repo root for project conventions.
+            3. Implement the changes — write clean, production-quality code.
+            4. If the issue is ambiguous, make reasonable decisions and document them.
+            5. Run `npm run build` to verify your changes compile.
+            6. Commit your changes to a new branch named `ai/issue-${{ github.event.issue.number }}`.
+            7. Create a pull request that:
+               - References the issue with "Closes #${{ github.event.issue.number }}"
+               - Summarizes what was implemented
+               - Lists any decisions made or assumptions taken
+          use_sticky_comment: true

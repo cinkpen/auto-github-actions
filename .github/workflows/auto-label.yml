@@ -1,0 +1,57 @@
+name: Auto-label Issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add ai-triage label to new issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['ai-triage']
+            })
+
+      - name: Auto-assign ai-implement for feature requests
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = (issue.body || '').toLowerCase();
+            const title = issue.title.toLowerCase();
+
+            // Auto-apply ai-implement if the issue clearly describes a feature or bug
+            const implementKeywords = ['add', 'create', 'build', 'implement', 'fix', 'update', 'change', 'remove', 'refactor'];
+            const hasKeyword = implementKeywords.some(kw => title.includes(kw) || body.includes(kw));
+
+            if (hasKeyword) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: ['ai-implement']
+              });
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '🤖 This issue has been auto-labeled for AI implementation. The autonomous pipeline will pick it up shortly.\n\nIf you want to trigger it manually, comment `/implement` on this issue.'
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '🤖 This issue needs manual review. To trigger autonomous implementation, add the `ai-implement` label or comment `/implement`.'
+              });
+            }
