@@ -6,6 +6,7 @@ on:
 
 permissions:
   issues: write
+  actions: write
 
 jobs:
   auto-label:
@@ -22,7 +23,7 @@ jobs:
               labels: ['ai-triage']
             })
 
-      - name: Auto-assign ai-implement for feature requests
+      - name: Auto-assign ai-implement and trigger pipeline
         uses: actions/github-script@v7
         with:
           script: |
@@ -30,7 +31,6 @@ jobs:
             const body = (issue.body || '').toLowerCase();
             const title = issue.title.toLowerCase();
 
-            // Auto-apply ai-implement if the issue clearly describes a feature or bug
             const implementKeywords = ['add', 'create', 'build', 'implement', 'fix', 'update', 'change', 'remove', 'refactor'];
             const hasKeyword = implementKeywords.some(kw => title.includes(kw) || body.includes(kw));
 
@@ -45,7 +45,18 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: '🤖 This issue has been auto-labeled for AI implementation. The autonomous pipeline will pick it up shortly.\n\nIf you want to trigger it manually, comment `/implement` on this issue.'
+                body: '🤖 Auto-labeled for AI implementation. Triggering pipeline...'
+              });
+
+              // Directly trigger the issue-to-pr workflow instead of relying on labeled event
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'issue-to-pr.yml',
+                ref: 'master',
+                inputs: {
+                  issue_number: String(context.issue.number)
+                }
               });
             } else {
               await github.rest.issues.createComment({
