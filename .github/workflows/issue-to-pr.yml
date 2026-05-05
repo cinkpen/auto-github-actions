@@ -5,9 +5,15 @@ on:
     types: [opened, labeled]
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to implement"
+        required: true
+        type: number
 
 concurrency:
-  group: claude-issue-${{ github.event.issue.number }}
+  group: claude-issue-${{ github.event.issue.number || inputs.issue_number }}
   cancel-in-progress: true
 
 permissions:
@@ -17,14 +23,15 @@ permissions:
 
 jobs:
   autonomous-implement:
-    # Only run when:
-    # 1. Issue is opened with "ai-implement" label, OR
-    # 2. Issue gets "ai-implement" label added, OR
-    # 3. Someone comments "/implement" on an issue
-    if: |
+    runs-on: ubuntu-latest
+    # Only run when triggered by:
+    # 1. An issue event with ai-implement label, OR
+    # 2. A comment starting with /implement, OR
+    # 3. Manual workflow dispatch
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'ai-implement')) ||
       (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/implement'))
-    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -41,6 +48,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Get issue details
+        id: issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.payload.issue?.number || context.payload.workflow_dispatch?.inputs?.issue_number || ${{ inputs.issue_number || 0 }};
+            if (!issueNumber) {
+              core.setFailed('No issue number found');
+              return;
+            }
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            core.setOutput('number', issueNumber);
+            core.setOutput('title', issue.title);
+            core.setOutput('body', issue.body || '');
+
       - name: Run Claude Code
         uses: anthropics/claude-code-action@v1
         with:
@@ -48,11 +74,11 @@ jobs:
           model: claude-sonnet-4-20250514
           max_turns: 30
           prompt: |
-            You are an autonomous developer. Your task is to implement the changes described in GitHub issue #${{ github.event.issue.number }}.
+            You are an autonomous developer. Your task is to implement the changes described in GitHub issue #${{ steps.issue.outputs.number }}.
 
             ## Issue Details
-            Title: ${{ github.event.issue.title }}
-            Body: ${{ github.event.issue.body }}
+            Title: ${{ steps.issue.outputs.title }}
+            Body: ${{ steps.issue.outputs.body }}
 
             ## Instructions
             1. Read the issue carefully and understand what needs to be done.
@@ -60,9 +86,9 @@ jobs:
             3. Implement the changes — write clean, production-quality code.
             4. If the issue is ambiguous, make reasonable decisions and document them.
             5. Run `npm run build` to verify your changes compile.
-            6. Commit your changes to a new branch named `ai/issue-${{ github.event.issue.number }}`.
+            6. Commit your changes to a new branch named `ai/issue-${{ steps.issue.outputs.number }}`.
             7. Create a pull request that:
-               - References the issue with "Closes #${{ github.event.issue.number }}"
+               - References the issue with "Closes #${{ steps.issue.outputs.number }}"
                - Summarizes what was implemented
                - Lists any decisions made or assumptions taken
           use_sticky_comment: true
