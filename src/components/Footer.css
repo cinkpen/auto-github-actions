@@ -1,0 +1,38 @@
+.footer {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: linear-gradient(135deg, #434343 0%, #000000 100%);
+  color: white;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  margin-top: auto;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.footer-time {
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0;
+  font-family: monospace;
+  letter-spacing: 0.025em;
+}
+
+.footer-copyright {
+  font-size: 0.875rem;
+  margin: 0;
+  opacity: 0.8;
+  font-weight: 300;
+}
+
+@media (max-width: 640px) {
+  .footer-content {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
