@@ -1,4 +1,4 @@
-name: Auto-Approve PRs
+name: Auto-Approve and Merge PRs
 
 on:
   pull_request:
@@ -8,12 +8,11 @@ on:
 
 permissions:
   pull-requests: write
-  contents: read
+  contents: write
 
 jobs:
   auto-approve:
     runs-on: ubuntu-latest
-    # Don't approve PRs from forks — only repo branches
     if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Auto-approve
@@ -45,3 +44,36 @@ jobs:
               event: 'APPROVE',
               body: '🤖 Auto-approved by the autonomous pipeline.'
             });
+
+      - name: Auto-merge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            // Wait for approval to register
+            await new Promise(r => setTimeout(r, 5000));
+
+            // Check PR is mergeable
+            const { data: freshPr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+
+            if (!freshPr.mergeable) {
+              console.log('PR not mergeable yet, will retry on next push.');
+              return;
+            }
+
+            // Enable auto-merge (merge commit)
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              commit_title: `${freshPr.title} (#${freshPr.number})`,
+              commit_message: '🤖 Auto-merged by the autonomous pipeline.',
+              merge_method: 'merge'
+            });
+
+            console.log(`Merged PR #${pr.number}`);
